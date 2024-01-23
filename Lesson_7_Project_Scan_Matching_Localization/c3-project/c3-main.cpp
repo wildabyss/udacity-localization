@@ -62,7 +62,7 @@ void keyboardEventOccurred(const pcl::visualization::KeyboardEvent &event, void*
 	}
 }
 
-void Accuate(ControlState response, cc::Vehicle::Control& state){
+void Actuate(ControlState response, cc::Vehicle::Control& state){
 
 	if(response.t > 0){
 		if(!state.reverse){
@@ -153,11 +153,19 @@ int main(){
 	auto vehicle = boost::static_pointer_cast<cc::Vehicle>(ego_actor);
 	Pose pose(Point(0,0,0), Rotate(0,0,0));
 
+	pcl::VoxelGrid<PointT> vg;
+	double filterRes;
+
 	// Load map
 	PointCloudT::Ptr mapCloud(new PointCloudT);
   	pcl::io::loadPCDFile("map.pcd", *mapCloud);
   	cout << "Loaded " << mapCloud->points.size() << " data points from map.pcd" << endl;
-	renderPointCloud(viewer, mapCloud, "map", Color(0,0,1));
+	filterRes = 0.5;
+	vg.setInputCloud(mapCloud);
+	vg.setLeafSize(filterRes, filterRes, filterRes);
+	typename pcl::PointCloud<PointT>::Ptr mapCloudFiltered (new pcl::PointCloud<PointT>);
+	vg.filter(*mapCloudFiltered);
+	renderPointCloud(viewer, mapCloudFiltered, "map", Color(0,0,1));
 
 	// Initialize NDT
 	pcl::NormalDistributionsTransform<pcl::PointXYZ, pcl::PointXYZ> ndt;
@@ -167,7 +175,7 @@ int main(){
   	ndt.setStepSize (1);
   	//Setting Resolution of NDT grid structure (VoxelGridCovariance).
   	ndt.setResolution (1);
-  	ndt.setInputTarget (mapCloud);
+  	ndt.setInputTarget (mapCloudFiltered);
 
 	typename pcl::PointCloud<PointT>::Ptr cloudFiltered (new pcl::PointCloud<PointT>);
 	typename pcl::PointCloud<PointT>::Ptr scanCloud (new pcl::PointCloud<PointT>);
@@ -181,7 +189,7 @@ int main(){
 					pclCloud.points.push_back(PointT(-detection.y, detection.x, -detection.z));
 				}
 			}
-			if(pclCloud.points.size() > 5000){ // CANDO: Can modify this value to get different scan resolutions
+			if(pclCloud.points.size() > 3000){ // CANDO: Can modify this value to get different scan resolutions
 				lastScanTime = std::chrono::system_clock::now();
 				*scanCloud = pclCloud;
 				new_scan = false;
@@ -218,7 +226,7 @@ int main(){
 			accuate = cs.back();
 			cs.clear();
 
-			Accuate(accuate, control);
+			Actuate(accuate, control);
 			vehicle->ApplyControl(control);
 		}
 
@@ -228,16 +236,15 @@ int main(){
 			
 			new_scan = true;
 			// TODO: (Filter scan using voxel filter)
-			pcl::VoxelGrid<PointT> vg;
 			vg.setInputCloud(scanCloud);
-			double filterRes = 0.5;
+			filterRes = 0.5;
 			vg.setLeafSize(filterRes, filterRes, filterRes);
 			typename pcl::PointCloud<PointT>::Ptr cloudFiltered (new pcl::PointCloud<PointT>);
 			vg.filter(*cloudFiltered);
 
 			// TODO: Find pose transform by using ICP or NDT matching
-			// Eigen::Matrix4d transform = performNDT(ndt, cloudFiltered, pose, 3);
-			Eigen::Matrix4d transform = transform3D(truePose.rotation.yaw, truePose.rotation.pitch, truePose.rotation.roll, truePose.position.x, truePose.position.y, truePose.position.z);
+			Eigen::Matrix4d transform = performNDT(ndt, cloudFiltered, pose, 3);
+			//Eigen::Matrix4d transform = transform3D(truePose.rotation.yaw, truePose.rotation.pitch, truePose.rotation.roll, truePose.position.x, truePose.position.y, truePose.position.z);
 			pose = getPose(transform);
 
 			// TODO: Transform scan so it aligns with ego's actual pose and render that scan
