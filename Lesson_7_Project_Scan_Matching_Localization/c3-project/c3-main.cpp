@@ -99,7 +99,7 @@ void drawCar(Pose pose, int num, Color color, double alpha, pcl::visualization::
 	renderBox(viewer, box, num, color, alpha);
 }
 
-Eigen::Matrix4d PerformNDT(pcl::NormalDistributionsTransform<pcl::PointXYZ, pcl::PointXYZ> ndt, PointCloudT::Ptr source, Pose startingPose, int iterations){
+Eigen::Matrix4d performNDT(pcl::NormalDistributionsTransform<pcl::PointXYZ, pcl::PointXYZ> ndt, PointCloudT::Ptr source, Pose startingPose, int iterations){
 
 	Eigen::Matrix4f init_guess = transform3D(startingPose.rotation.yaw, startingPose.rotation.pitch, startingPose.rotation.roll, startingPose.position.x, startingPose.position.y, startingPose.position.z).cast<float>();
 
@@ -236,12 +236,13 @@ int main(){
 			vg.filter(*cloudFiltered);
 
 			// TODO: Find pose transform by using ICP or NDT matching
-			Eigen::Matrix4d transform = performNDT(ndt, cloudFiltered, pose, 3);
+			// Eigen::Matrix4d transform = performNDT(ndt, cloudFiltered, pose, 3);
+			Eigen::Matrix4d transform = transform3D(truePose.rotation.yaw, truePose.rotation.pitch, truePose.rotation.roll, truePose.position.x, truePose.position.y, truePose.position.z);
 			pose = getPose(transform);
 
 			// TODO: Transform scan so it aligns with ego's actual pose and render that scan
 			PointCloudT::Ptr cloudTransformed (new PointCloudT);
-			pcl::transformPointCloud (*cloudFiltered, *cloudTransformed, transform);
+			pcl::transformPointCloud (*scanCloud, *cloudTransformed, transform);
 
 			viewer->removePointCloud("scan");
 			// TODO: Change `scanCloud` below to your transformed scan
