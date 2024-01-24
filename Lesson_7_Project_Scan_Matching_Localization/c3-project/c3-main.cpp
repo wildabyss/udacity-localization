@@ -116,6 +116,41 @@ Eigen::Matrix4d performNDT(pcl::NormalDistributionsTransform<pcl::PointXYZ, pcl:
 
 }
 
+Eigen::Matrix4d performICP(PointCloudT::Ptr target, PointCloudT::Ptr source, Pose startingPose, int iterations){
+
+	// Defining a rotation matrix and translation vector
+  	Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity ();
+
+  	// align source with starting pose
+  	Eigen::Matrix4d initTransform = transform3D(startingPose.rotation.yaw, startingPose.rotation.pitch, startingPose.rotation.roll, startingPose.position.x, startingPose.position.y, startingPose.position.z);
+  	PointCloudT::Ptr transformSource (new PointCloudT); 
+  	pcl::transformPointCloud (*source, *transformSource, initTransform);
+
+  	pcl::IterativeClosestPoint<PointT, PointT> icp;
+  	icp.setMaximumIterations (iterations);
+  	icp.setInputSource (transformSource);
+  	icp.setInputTarget (target);
+	icp.setMaxCorrespondenceDistance (2);
+	//icp.setTransformationEpsilon(0.001);
+	//icp.setEuclideanFitnessEpsilon(.05);
+	//icp.setRANSACOutlierRejectionThreshold (10);
+
+  	PointCloudT::Ptr cloud_icp (new PointCloudT);  // ICP output point cloud
+  	icp.align (*cloud_icp);
+
+  	if (icp.hasConverged ())
+  	{
+  		transformation_matrix = icp.getFinalTransformation ().cast<double>();
+  		transformation_matrix =  transformation_matrix * initTransform;
+  	}
+	else
+	{
+  		cout << "WARNING: ICP did not converge" << endl;
+	}
+  	return transformation_matrix;
+
+}
+
 int main(){
 
 	auto client = cc::Client("localhost", 2000);
@@ -189,7 +224,7 @@ int main(){
 					pclCloud.points.push_back(PointT(-detection.y, detection.x, -detection.z));
 				}
 			}
-			if(pclCloud.points.size() > 3000){ // CANDO: Can modify this value to get different scan resolutions
+			if(pclCloud.points.size() > 5000){ // CANDO: Can modify this value to get different scan resolutions
 				lastScanTime = std::chrono::system_clock::now();
 				*scanCloud = pclCloud;
 				new_scan = false;
@@ -221,12 +256,12 @@ int main(){
 		renderRay(viewer, Point(truePose.position.x+2*cos(theta), truePose.position.y+2*sin(theta),truePose.position.z),  Point(truePose.position.x+4*cos(stheta), truePose.position.y+4*sin(stheta),truePose.position.z), "steer", Color(0,1,0));
 
 
-		ControlState accuate(0, 0, 1);
+		ControlState actuate(0, 0, 1);
 		if(cs.size() > 0){
-			accuate = cs.back();
+			actuate = cs.back();
 			cs.clear();
 
-			Actuate(accuate, control);
+			Actuate(actuate, control);
 			vehicle->ApplyControl(control);
 		}
 
@@ -243,7 +278,8 @@ int main(){
 			vg.filter(*cloudFiltered);
 
 			// TODO: Find pose transform by using ICP or NDT matching
-			Eigen::Matrix4d transform = performNDT(ndt, cloudFiltered, pose, 3);
+			// Eigen::Matrix4d transform = performNDT(ndt, cloudFiltered, pose, 3);
+			Eigen::Matrix4d transform = performICP(mapCloudFiltered, cloudFiltered, pose, 3);
 			//Eigen::Matrix4d transform = transform3D(truePose.rotation.yaw, truePose.rotation.pitch, truePose.rotation.roll, truePose.position.x, truePose.position.y, truePose.position.z);
 			pose = getPose(transform);
 
