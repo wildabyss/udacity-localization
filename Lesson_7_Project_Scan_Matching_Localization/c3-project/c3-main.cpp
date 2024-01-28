@@ -35,6 +35,8 @@ using namespace std;
 #include <pcl/registration/ndt.h>
 #include <pcl/console/time.h>   // TicToc
 
+#define LIDAR_RANGE 30.0
+
 PointCloudT pclCloud;
 cc::Vehicle::Control control;
 std::chrono::time_point<std::chrono::system_clock> currentTime;
@@ -118,6 +120,17 @@ Eigen::Matrix4d performNDT(pcl::NormalDistributionsTransform<pcl::PointXYZ, pcl:
 
 Eigen::Matrix4d performICP(PointCloudT::Ptr target, PointCloudT::Ptr source, Pose startingPose, int iterations){
 
+	// Exclude map that is out of view range
+	const float slack = 5.0;
+	float minX = startingPose.position.x - LIDAR_RANGE - slack;
+	float maxX = startingPose.position.x + LIDAR_RANGE + slack;
+	typename pcl::PointCloud<PointT>::Ptr targetInRange (new pcl::PointCloud<PointT>);
+	for (int i = 0; i<target->size(); i++){
+		if (target->at(i)._PointXYZ::x >= minX && target->at(i)._PointXYZ::x <= maxX) {
+			*targetInRange.points.push_back(target->at(i));
+		}
+	}
+
 	// Defining a rotation matrix and translation vector
   	Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity ();
 
@@ -129,7 +142,7 @@ Eigen::Matrix4d performICP(PointCloudT::Ptr target, PointCloudT::Ptr source, Pos
   	pcl::IterativeClosestPoint<PointT, PointT> icp;
   	icp.setMaximumIterations (iterations);
   	icp.setInputSource (transformSource);
-  	icp.setInputTarget (target);
+  	icp.setInputTarget (targetInRange);
 	icp.setMaxCorrespondenceDistance (2);
 	//icp.setTransformationEpsilon(0.001);
 	//icp.setEuclideanFitnessEpsilon(.05);
@@ -170,7 +183,7 @@ int main(){
 	lidar_bp.SetAttribute("upper_fov", "15");
     lidar_bp.SetAttribute("lower_fov", "-25");
     lidar_bp.SetAttribute("channels", "32");
-    lidar_bp.SetAttribute("range", "30");
+    lidar_bp.SetAttribute("range", to_string(LIDAR_RANGE));
 	lidar_bp.SetAttribute("rotation_frequency", "60");
 	lidar_bp.SetAttribute("points_per_second", "500000");
 
