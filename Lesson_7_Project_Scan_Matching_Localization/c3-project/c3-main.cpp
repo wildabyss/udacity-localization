@@ -121,13 +121,13 @@ Eigen::Matrix4d performNDT(pcl::NormalDistributionsTransform<pcl::PointXYZ, pcl:
 Eigen::Matrix4d performICP(PointCloudT::Ptr target, PointCloudT::Ptr source, Pose startingPose, int iterations){
 
 	// Exclude map that is out of view range
-	const float slack = 5.0;
+	const float slack = 2.0;
 	float minX = startingPose.position.x - LIDAR_RANGE - slack;
 	float maxX = startingPose.position.x + LIDAR_RANGE + slack;
 	typename pcl::PointCloud<PointT>::Ptr targetInRange (new pcl::PointCloud<PointT>);
 	for (int i = 0; i<target->size(); i++){
 		if (target->at(i)._PointXYZ::x >= minX && target->at(i)._PointXYZ::x <= maxX) {
-			*targetInRange.points.push_back(target->at(i));
+			targetInRange->points.push_back(target->at(i));
 		}
 	}
 
@@ -201,21 +201,15 @@ int main(){
 	auto vehicle = boost::static_pointer_cast<cc::Vehicle>(ego_actor);
 	Pose pose(Point(0,0,0), Rotate(0,0,0));
 
-	pcl::VoxelGrid<PointT> vg;
-	double filterRes;
+	
 
 	// Load map
 	PointCloudT::Ptr mapCloud(new PointCloudT);
   	pcl::io::loadPCDFile("map.pcd", *mapCloud);
   	cout << "Loaded " << mapCloud->points.size() << " data points from map.pcd" << endl;
-	filterRes = 0.5;
-	vg.setInputCloud(mapCloud);
-	vg.setLeafSize(filterRes, filterRes, filterRes);
-	typename pcl::PointCloud<PointT>::Ptr mapCloudFiltered (new pcl::PointCloud<PointT>);
-	vg.filter(*mapCloudFiltered);
-	renderPointCloud(viewer, mapCloudFiltered, "map", Color(0,0,1));
+	renderPointCloud(viewer, mapCloud, "map", Color(0,0,1));
 
-	// Initialize NDT
+	/*// Initialize NDT
 	pcl::NormalDistributionsTransform<pcl::PointXYZ, pcl::PointXYZ> ndt;
 	// Setting minimum transformation difference for termination condition.
   	ndt.setTransformationEpsilon (.0001);
@@ -223,7 +217,7 @@ int main(){
   	ndt.setStepSize (1);
   	//Setting Resolution of NDT grid structure (VoxelGridCovariance).
   	ndt.setResolution (1);
-  	ndt.setInputTarget (mapCloudFiltered);
+  	ndt.setInputTarget (mapCloudFiltered);*/
 
 	typename pcl::PointCloud<PointT>::Ptr cloudFiltered (new pcl::PointCloud<PointT>);
 	typename pcl::PointCloud<PointT>::Ptr scanCloud (new pcl::PointCloud<PointT>);
@@ -284,15 +278,16 @@ int main(){
 			
 			new_scan = true;
 			// TODO: (Filter scan using voxel filter)
+			pcl::VoxelGrid<PointT> vg;
+			double filterRes = 0.5;
 			vg.setInputCloud(scanCloud);
-			filterRes = 0.5;
 			vg.setLeafSize(filterRes, filterRes, filterRes);
 			typename pcl::PointCloud<PointT>::Ptr cloudFiltered (new pcl::PointCloud<PointT>);
 			vg.filter(*cloudFiltered);
 
 			// TODO: Find pose transform by using ICP or NDT matching
 			// Eigen::Matrix4d transform = performNDT(ndt, cloudFiltered, pose, 3);
-			Eigen::Matrix4d transform = performICP(mapCloudFiltered, cloudFiltered, pose, 3);
+			Eigen::Matrix4d transform = performICP(mapCloud, cloudFiltered, pose, 5);
 			//Eigen::Matrix4d transform = transform3D(truePose.rotation.yaw, truePose.rotation.pitch, truePose.rotation.roll, truePose.position.x, truePose.position.y, truePose.position.z);
 			pose = getPose(transform);
 
