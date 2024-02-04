@@ -279,7 +279,7 @@ int main(){
 			new_scan = true;
 			// TODO: (Filter scan using voxel filter)
 			pcl::VoxelGrid<PointT> vg;
-			double filterRes = 0.5;
+			double filterRes = 0.6;
 			vg.setInputCloud(scanCloud);
 			vg.setLeafSize(filterRes, filterRes, filterRes);
 			typename pcl::PointCloud<PointT>::Ptr cloudFiltered (new pcl::PointCloud<PointT>);
@@ -287,7 +287,7 @@ int main(){
 
 			// TODO: Find pose transform by using ICP or NDT matching
 			// Eigen::Matrix4d transform = performNDT(ndt, cloudFiltered, pose, 3);
-			Eigen::Matrix4d transform = performICP(mapCloud, cloudFiltered, pose, 5);
+			Eigen::Matrix4d transform = performICP(mapCloud, cloudFiltered, pose, 8);
 			//Eigen::Matrix4d transform = transform3D(truePose.rotation.yaw, truePose.rotation.pitch, truePose.rotation.roll, truePose.position.x, truePose.position.y, truePose.position.z);
 			pose = getPose(transform);
 
